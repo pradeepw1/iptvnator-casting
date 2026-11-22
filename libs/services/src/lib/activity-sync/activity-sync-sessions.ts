@@ -1,0 +1,404 @@
+import {
+    createRandomId,
+    playbackTimestamp,
+    type PlaybackPositionData,
+} from '@iptvnator/shared/interfaces';
+import { ActivitySupersededError } from './activity-action-fence';
+import {
+    applyActivityOperation,
+    emptyActivityState,
+    type ActivityAddress,
+    type ActivityLocalRecord,
+    type ActivityOperation,
+} from '@iptvnator/shared/interfaces/activity-sync';
+import type { ActivitySyncClient } from './activity-sync-client';
+import {
+    projectActivity,
+    activityPositionMetadata as metadata,
+    activityResume,
+} from './activity-projection';
+
+export function beginActivity(
+    this: ActivitySyncClient,
+    sourceId: string,
+    position: PlaybackPositionData
+): Promise<{ address: ActivityAddress; generation: number }> {
+    const sessionId = position.activitySessionId;
+    if (!sessionId)
+        return Promise.reject(new Error('Activity session missing'));
+    const existing = this.sessions.get(sessionId);
+    if (existing) return existing;
+    const currentAction = this.actions.position(sourceId, position);
+    let incarnation = this.contexts.get(sourceId)?.sourceIncarnation;
+    const operationId = createRandomId();
+    let launchConsent: string | undefined;
+    const begin = (async () => {
+        const consentGeneration = this.consent();
+        launchConsent = consentGeneration;
+        const address = await this.address(sourceId, position, currentAction);
+        incarnation = address.sourceIncarnation;
+        let generation = 0;
+        if (!currentAction())
+            throw new ActivitySupersededError('Activity launch superseded');
+        if (!this.consentMatches(consentGeneration))
+            throw new Error('Activity consent changed');
+        this.delivery.begins.set(operationId, consentGeneration);
+        const committed = await this.store.mutate(address, (current) => {
+            if (!currentAction())
+                throw new ActivitySupersededError('Activity launch superseded');
+            if (!this.consentMatches(consentGeneration))
+                throw new Error('Activity consent changed');
+            const state = current?.state ?? emptyActivityState();
+            const operation: ActivityOperation = {
+                kind: 'begin',
+                operationId,
+                deviceId: this.options.deviceId,
+                expectedRevision: state.revision,
+                sessionId,
+                positionMetadata: metadata(position),
+            };
+            const fresh =
+                !current?.conflict &&
+                (current?.pending ?? []).every(
+                    (intent) =>
+                        intent.consentGeneration === consentGeneration &&
+                        this.delivery.live(intent)
+                );
+            const result = applyActivityOperation(state, operation);
+            generation = result.state.generation;
+            return {
+                ...current,
+                state: result.state,
+                position: {
+                    ...position,
+                    watched: result.state.watched,
+                    updatedAt: new Date().toISOString(),
+                },
+                pending: [
+                    ...(current?.pending ?? []),
+                    {
+                        address,
+                        consentGeneration,
+                        operation,
+                        ...(fresh
+                            ? { deliveryLease: this.delivery.lease() }
+                            : {}),
+                    },
+                ],
+            };
+        });
+        const active =
+            this.consentMatches(consentGeneration) && currentAction();
+        if (!currentAction()) this.retiredSessions.add(sessionId);
+        if (
+            active &&
+            committed.pending.some(
+                (intent) =>
+                    intent.operation.operationId === operationId &&
+                    intent.deliveryLease?.owner === this.delivery.owner
+            )
+        )
+            this.delivery.start();
+        else this.delivery.settled(operationId);
+        if (active) {
+            this.localSessions.delete(sessionId);
+            this.retiredSessions.delete(sessionId);
+            this.committed(sourceId, position, 'begin');
+        }
+        this.options.changed();
+        void this.flush();
+        return { address, generation };
+    })().catch((error) => {
+        const superseded =
+            !currentAction() || error instanceof ActivitySupersededError;
+        const obsolete = superseded || !this.consentMatches(launchConsent);
+        if (superseded) this.retiredSessions.add(sessionId);
+        if (obsolete) this.localSessions.delete(sessionId);
+        else
+            this.localSessions.set(sessionId, {
+                sourceId,
+                incarnation,
+                position: {
+                    contentType: position.contentType,
+                    contentXtreamId: position.contentXtreamId,
+                    ...(position.activityIdentity
+                        ? { activityIdentity: { ...position.activityIdentity } }
+                        : {}),
+                },
+            });
+        this.delivery.settled(operationId);
+        if (this.sessions.get(sessionId) === begin)
+            this.sessions.delete(sessionId);
+        if (!superseded)
+            this.options.failedLaunch?.(
+                sourceId,
+                position,
+                incarnation,
+                obsolete
+            );
+        throw error;
+    });
+    this.sessions.set(sessionId, begin);
+    return begin;
+}
+
+export async function saveActivity(
+    this: ActivitySyncClient,
+    sourceId: string,
+    position: PlaybackPositionData,
+    playedAt: string,
+    currentAction: () => boolean
+): Promise<'local-only' | void> {
+    const sessionId = position.activitySessionId;
+    const nativeCheckpointAt = sessionId
+        ? position.nativeCheckpointAt
+        : undefined;
+    const failed = sessionId ? this.localSessions.get(sessionId) : undefined;
+    const currentScope = this.contexts.get(sourceId)?.sourceIncarnation;
+    if (
+        failed?.incarnation &&
+        currentScope &&
+        failed.incarnation !== currentScope
+    ) {
+        this.localSessions.delete(sessionId!);
+        this.retiredSessions.add(sessionId!);
+        return;
+    }
+    // Failed explicit launches have no shared owner. Keep the adapter's local
+    // fallback active until another explicit launch commits ownership.
+    if (sessionId && failed && !this.sessions.has(sessionId))
+        return 'local-only';
+    if (sessionId && this.retiredSessions.has(sessionId)) return;
+    let session;
+    try {
+        session = sessionId ? await this.sessions.get(sessionId) : undefined;
+    } catch (error) {
+        if (sessionId && this.retiredSessions.has(sessionId)) return;
+        throw error;
+    }
+    const address =
+        session?.address ??
+        (await this.address(sourceId, position, currentAction).catch(
+            (error) => {
+                if (
+                    currentAction() &&
+                    !(error instanceof ActivitySupersededError)
+                )
+                    throw error;
+                if (nativeCheckpointAt)
+                    throw new ActivitySupersededError(
+                        'Activity checkpoint superseded'
+                    );
+            }
+        ));
+    if (!address) return;
+    if (sessionId && !session) {
+        // External players may outlive the renderer. A checkpoint can recover
+        // durable ownership, but only an explicit launch may acquire it.
+        const state = (await this.store.read(address))?.state;
+        if (
+            state?.owner?.deviceId === this.options.deviceId &&
+            state.owner.sessionId === sessionId
+        ) {
+            session = { address, generation: state.generation };
+            this.sessions.set(sessionId, Promise.resolve(session));
+        } else {
+            this.retiredSessions.add(sessionId);
+            return;
+        }
+    }
+    if (
+        sessionId &&
+        session &&
+        session.address.sourceIncarnation !==
+            this.contexts.get(sourceId)?.sourceIncarnation
+    ) {
+        this.retiredSessions.add(sessionId);
+        return;
+    }
+    const operationId = createRandomId();
+    const consentGeneration = this.consent();
+    if (session) this.delivery.checkpoints.set(operationId, consentGeneration);
+    let committed: ActivityLocalRecord;
+    try {
+        committed = await this.store.mutate(address, (current) => {
+            if (!currentAction())
+                throw new ActivitySupersededError('Activity action superseded');
+            const state = current?.state ?? emptyActivityState();
+            if (
+                current &&
+                nativeCheckpointAt &&
+                playbackTimestamp(
+                    current.position?.activityPlayedAt ??
+                        state.positionMetadata?.playedAt
+                ) >= playbackTimestamp(nativeCheckpointAt)
+            )
+                return current;
+            if (
+                session &&
+                (this.retiredSessions.has(sessionId!) ||
+                    (state.generation > session.generation &&
+                        state.owner?.sessionId !== sessionId))
+            ) {
+                this.retiredSessions.add(sessionId!);
+                return current!;
+            }
+            const recoveredTitle =
+                nativeCheckpointAt && !position.activityTitle
+                    ? (state.positionMetadata?.title ??
+                      current?.position?.activityTitle)
+                    : undefined;
+            const snapshot = recoveredTitle
+                ? { ...position, activityTitle: recoveredTitle }
+                : position;
+            const operation: ActivityOperation = session
+                ? {
+                      kind: 'checkpoint',
+                      operationId,
+                      deviceId: this.options.deviceId,
+                      generation:
+                          state.owner?.deviceId === this.options.deviceId &&
+                          state.owner?.sessionId === sessionId
+                              ? state.generation
+                              : session.generation,
+                      sessionId: sessionId!,
+                      sequence:
+                          Math.max(
+                              state.owner?.sequence ?? 0,
+                              ...(current?.pending ?? []).map((p) =>
+                                  p.operation.kind === 'checkpoint' &&
+                                  p.operation.sessionId === sessionId
+                                      ? p.operation.sequence
+                                      : 0
+                              )
+                          ) + 1,
+                      resume: activityResume(position),
+                      positionMetadata: { ...metadata(snapshot), playedAt },
+                  }
+                : {
+                      kind: 'mark-watched',
+                      operationId,
+                      deviceId: this.options.deviceId,
+                      expectedRevision: state.revision,
+                      positionMetadata: metadata(position),
+                  };
+            const result = applyActivityOperation(state, operation);
+            return {
+                ...current,
+                state: result.state,
+                position: {
+                    ...snapshot,
+                    watched: result.state.watched,
+                    updatedAt: playedAt,
+                    ...(session ? { activityPlayedAt: playedAt } : {}),
+                },
+                pending: [
+                    ...(current?.pending ?? []),
+                    {
+                        address,
+                        consentGeneration,
+                        operation,
+                        ...(session && !current?.conflict
+                            ? { deliveryLease: this.delivery.lease() }
+                            : {}),
+                    },
+                ],
+                ...(result.status === 'conflict' ? { conflict: state } : {}),
+            };
+        });
+    } catch (error) {
+        this.delivery.settled(operationId);
+        if (currentAction()) throw error;
+        if (nativeCheckpointAt)
+            throw new ActivitySupersededError('Activity checkpoint superseded');
+        return;
+    }
+    if (
+        committed.pending.some(
+            (intent) =>
+                intent.operation.operationId === operationId &&
+                intent.deliveryLease?.owner === this.delivery.owner
+        )
+    )
+        this.delivery.start();
+    else this.delivery.settled(operationId);
+    if (!currentAction()) return;
+    const persisted = committed.pending.some(
+        (intent) => intent.operation.operationId === operationId
+    );
+    const localOnly = persisted && this.options.consent() !== consentGeneration;
+    if (persisted && !localOnly)
+        this.committed(sourceId, position, session ? 'checkpoint' : 'command');
+    this.options.changed();
+    // Another window may finish opt-out while this local commit is in flight.
+    if (localOnly) return 'local-only';
+    void this.flush();
+}
+
+export async function resetActivity(
+    this: ActivitySyncClient,
+    sourceId: string,
+    position: Partial<PlaybackPositionData>,
+    capturedAction?: () => boolean
+): Promise<'local-only' | void> {
+    const currentAction =
+        capturedAction ?? this.actions.position(sourceId, position);
+    if (!currentAction() || this.options.profileActive?.() === false) return;
+    const consentGeneration = this.options.consent();
+    if (!consentGeneration) return 'local-only';
+    const address = await this.address(sourceId, position, currentAction).catch(
+        (error) => {
+            if (currentAction() && !(error instanceof ActivitySupersededError))
+                throw error;
+        }
+    );
+    if (!address || !currentAction()) return;
+    if (!this.consentMatches(consentGeneration)) return 'local-only';
+    const committed = await this.store
+        .mutate(address, (current) => {
+            if (!currentAction())
+                throw new ActivitySupersededError('Activity action superseded');
+            const state = current?.state ?? emptyActivityState();
+            const operation: ActivityOperation = {
+                kind: 'reset',
+                operationId: createRandomId(),
+                deviceId: this.options.deviceId,
+                expectedRevision: state.revision,
+                positionMetadata: metadata({
+                    ...projectActivity(address, state, this.alias(address)),
+                    ...position,
+                    positionSeconds: 0,
+                }),
+            };
+            return {
+                ...current,
+                state: applyActivityOperation(state, operation).state,
+                position: projectActivity(
+                    address,
+                    {
+                        ...emptyActivityState(),
+                        positionMetadata: operation.positionMetadata,
+                    },
+                    this.alias(address) ?? { ...current?.position, ...position }
+                ),
+                pending: [
+                    ...(current?.pending ?? []),
+                    { address, consentGeneration, operation },
+                ],
+            };
+        })
+        .catch((error) => {
+            if (currentAction() && !(error instanceof ActivitySupersededError))
+                throw error;
+        });
+    if (!committed) return;
+    if (currentAction() && this.consentMatches(consentGeneration)) {
+        this.committed(sourceId, position, 'command');
+        if (committed.position)
+            this.committed(sourceId, committed.position, 'command');
+    }
+    this.options.changed();
+    if (!currentAction()) return;
+    if (!this.consentMatches(consentGeneration)) return 'local-only';
+    void this.flush();
+}

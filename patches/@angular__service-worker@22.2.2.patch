@@ -1,0 +1,28 @@
+diff --git a/ngsw-worker.js b/ngsw-worker.js
+index edaa3ba..9fed775 100755
+--- a/ngsw-worker.js
++++ b/ngsw-worker.js
+@@ -1690,7 +1690,12 @@ ${msgIdle}`, { headers: this.adapter.newHeaders({ "Content-Type": "text/plain" }
+     }
+     async handleMessage(msg, from) {
+       if (isMsgCheckForUpdates(msg)) {
+-        const action = this.checkForUpdate();
++        const action = this.checkForUpdate().then((found) => {
++          if (found) return true;
++          // A page that missed VERSION_READY can still apply a healthy cached update.
++          const clientHash = this.clientVersionMap.get(from.id);
++          return this.state === DriverReadyState.NORMAL && clientHash !== void 0 && clientHash !== this.latestHash;
++        });
+         await this.completeOperation(from, action, msg.nonce);
+       } else if (isMsgActivateUpdate(msg)) {
+         const action = this.updateClient(from);
+@@ -2073,8 +2078,7 @@ ${msgIdle}`, { headers: this.adapter.newHeaders({ "Content-Type": "text/plain" }
+         return true;
+       } catch (err) {
+         this.debugger.log(err, `Error occurred while updating to manifest ${hash}`);
+-        this.state = DriverReadyState.EXISTING_CLIENTS_ONLY;
+-        this.stateMessage = `Degraded due to failed initialization: ${errorToString(err)}`;
++        // A failed candidate does not invalidate the installed version or its caches.
+         return false;
+       }
+     }

@@ -1,0 +1,125 @@
+.settings-page {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.settings-page > .page-header,
+.settings-page > .error,
+.settings-page > [role='status'] {
+    flex-shrink: 0;
+}
+.settings-screen {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+.settings-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    flex-shrink: 0;
+}
+.settings-toolbar p {
+    margin: 0;
+}
+.settings-workspace {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+.settings-categories {
+    width: 340px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding: var(--tv-focus-reach);
+    margin: -10px 22px -10px -10px;
+}
+.settings-categories button {
+    width: 100%;
+    min-height: var(--tv-list-row);
+    margin-bottom: var(--tv-space-1);
+    background: transparent;
+    padding: 8px 24px;
+}
+.settings-categories small {
+    font-size: var(--tv-type-eyebrow);
+    margin-top: 2px;
+}
+.settings-categories [aria-selected='true'] {
+    background: var(--tv-surface);
+}
+.settings-workspace > [role='tabpanel'] {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    background: var(--tv-surface);
+    padding: var(--tv-space-5);
+}
+.settings-workspace .source-form,
+.settings-workspace .backend-connection {
+    max-width: 900px;
+}
+.settings-workspace section:last-child {
+    margin-bottom: 0;
+}
+.settings-workspace .source-form {
+    margin: 0;
+}
+.settings-workspace .backend-connection {
+    margin-bottom: 44px;
+}
+.settings-toolbar .phone-setup {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+}
+.compact-phone-setup > .muted {
+    display: none;
+}
+.compact-phone-setup .phone-pairing {
+    position: fixed;
+    z-index: 20;
+    top: 15%;
+    left: 25%;
+    right: 8%;
+    max-height: 75vh;
+    overflow-y: auto;
+    padding: 36px;
+    background: var(--tv-surface);
+    outline: 3px solid var(--tv-line);
+}
+.compact-phone-setup > [role='alert'] {
+    position: absolute;
+    right: 56px;
+    z-index: 21;
+    background: var(--tv-surface);
+    padding: 16px;
+    max-width: 600px;
+}
+@media (max-width: 1400px) {
+    .settings-categories {
+        width: 240px;
+        margin-right: 20px;
+    }
+    .settings-workspace > [role='tabpanel'] {
+        padding: 24px;
+    }
+}
+.settings-toolbar .phone-setup {
+    border: 0;
+}
+.settings-workspace > [role='tabpanel']:focus {
+    outline: var(--tv-focus-width) solid var(--app-focus-ring-color);
+    outline-offset: -5px;
+}
+.phone-modal-backdrop {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    background: rgba(0, 0, 0, 0.65);
+}

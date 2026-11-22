@@ -1,0 +1,163 @@
+import { Component, signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { MatDialog } from '@angular/material/dialog';
+import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { TranslateModule } from '@ngx-translate/core';
+import { SettingsStore } from '@iptvnator/services';
+import { EpgItemDialogData } from './epg-item-description/epg-item-description.component';
+import {
+    EPG_PROGRAMME_DIALOG_CONFIG,
+    EpgProgrammeDialogService,
+} from './epg-programme-dialog.service';
+
+@Component({ template: '' })
+class HostComponent {}
+
+const programme: EpgItemDialogData = {
+    start: '2026-04-05T11:30:00.000Z',
+    stop: '2026-04-05T12:30:00.000Z',
+    channel: 'channel-1',
+    title: 'Evening Show',
+    desc: 'An evening programme',
+    category: null,
+};
+
+describe('EpgProgrammeDialogService', () => {
+    beforeEach(() => {
+        TestBed.configureTestingModule({
+            imports: [NoopAnimationsModule, TranslateModule.forRoot()],
+            providers: [
+                {
+                    provide: SettingsStore,
+                    useValue: { resolvedEpgOffsetMinutes: signal(0) },
+                },
+            ],
+        });
+    });
+
+    afterEach(() => {
+        TestBed.inject(MatDialog).closeAll();
+    });
+
+    async function openDialog(
+        data: EpgItemDialogData = programme
+    ): Promise<HTMLElement> {
+        const fixture = TestBed.createComponent(HostComponent);
+        TestBed.inject(EpgProgrammeDialogService).open(data);
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        const container = document.querySelector<HTMLElement>(
+            'mat-dialog-container'
+        );
+        if (!container) {
+            throw new Error('The programme dialog did not open');
+        }
+        return container;
+    }
+
+    it('opens at the shell md width inside its panel class', async () => {
+        const container = await openDialog();
+        const pane = container.closest<HTMLElement>('.cdk-overlay-pane');
+
+        expect(pane?.style.width).toBe('560px');
+        expect(pane?.classList).toContain(
+            EPG_PROGRAMME_DIALOG_CONFIG.panelClass
+        );
+    });
+
+    it('names the dialog after the programme title', async () => {
+        const container = await openDialog();
+        const labelId = container.getAttribute('aria-labelledby');
+
+        expect(labelId).toBeTruthy();
+        expect(
+            document.getElementById(labelId ?? '')?.textContent?.trim()
+        ).toBe('Evening Show');
+    });
+
+    it('says under the title which channel the programme is on', async () => {
+        const subtitle = (container: HTMLElement) =>
+            container
+                .querySelector('.app-dialog__subtitle')
+                ?.textContent?.trim();
+
+        expect(
+            subtitle(
+                await openDialog({ ...programme, channelName: 'Channel One' })
+            )
+        ).toBe('Channel One');
+        TestBed.inject(MatDialog).closeAll();
+        expect(subtitle(await openDialog())).toBe('DIALOGS.PROGRAMME');
+    });
+
+    it('closes only the programme dialog owned by an aborted guide', async () => {
+        const fixture = TestBed.createComponent(HostComponent);
+        const service = TestBed.inject(EpgProgrammeDialogService);
+        const material = TestBed.inject(MatDialog);
+        const owner = new AbortController();
+        service.open(programme, owner.signal).subscribe();
+        service.open({
+            ...programme,
+            title: 'Synthetic Independent Programme',
+        });
+        fixture.detectChanges();
+        await fixture.whenStable();
+        const [owned, independent] = material.openDialogs;
+        expect(
+            service.ownedAfterClosed(document.getElementById(owned.id))
+        ).toBeDefined();
+        expect(
+            service.ownedAfterClosed(document.getElementById(independent.id))
+        ).toBeUndefined();
+        owner.abort();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        expect(material.openDialogs).not.toContain(owned);
+        expect(material.openDialogs).toContain(independent);
+    });
+
+    it('offers one dismiss first and the primary action last', async () => {
+        const container = await openDialog({
+            ...programme,
+            primaryAction: 'timeshift',
+            archiveUrlAvailable: true,
+            archiveDownloadAvailable: true,
+        });
+
+        // Only the footer Close closes without a result; the shell's header
+        // close binds an explicit undefined result instead.
+        const dismissButtons = container.querySelectorAll(
+            'button[mat-dialog-close]'
+        );
+        expect(dismissButtons).toHaveLength(1);
+
+        const footer = Array.from(
+            container.querySelectorAll('.app-dialog__footer button')
+        );
+        expect(footer).toHaveLength(2);
+        expect(footer[0]).toBe(dismissButtons[0]);
+        expect(footer[1].classList).toContain('epg-dialog__primary');
+
+        // The archive tools stay with their notice, outside the footer row.
+        const tools = container.querySelector('.epg-dialog__tools');
+        expect(
+            tools?.querySelector('[data-testid="copy-catchup-url"]')
+        ).toBeTruthy();
+        expect(
+            tools?.querySelector('[data-testid="download-catchup"]')
+        ).toBeTruthy();
+    });
+
+    it('keeps the lone dismiss when the programme has no action', async () => {
+        const container = await openDialog();
+        const footer = Array.from(
+            container.querySelectorAll('.app-dialog__footer button')
+        );
+
+        expect(footer).toHaveLength(1);
+        expect(footer[0].classList).toContain('epg-dialog__close');
+        expect(container.querySelector('.epg-dialog__tools')).toBeNull();
+    });
+});

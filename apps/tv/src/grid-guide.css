@@ -1,0 +1,292 @@
+.grid-overlay .live-overlay-panel {
+    padding: 0;
+    background: rgba(11, 16, 15, 0.98);
+}
+.grid-guide {
+    height: 100%;
+    padding: var(--tv-safe-y) var(--tv-safe-x);
+    display: flex;
+    flex-direction: column;
+}
+.grid-guide-header {
+    display: flex;
+    align-items: center;
+    flex: none;
+    margin-bottom: 16px;
+}
+.grid-guide-header > div {
+    margin-right: auto;
+}
+.grid-guide-header h1 {
+    font-size: var(--tv-type-title);
+    margin: 4px 0 0;
+}
+.grid-guide-header .muted {
+    font-size: var(--tv-type-eyebrow);
+    letter-spacing: var(--tv-tracking-eyebrow);
+}
+.grid-guide-header > button {
+    margin-left: 18px;
+    max-width: 40%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.grid-toolbar {
+    display: flex;
+    flex: none;
+    align-items: center;
+    margin-bottom: 20px;
+}
+.grid-toolbar button {
+    margin-right: 12px;
+    white-space: nowrap;
+}
+.grid-date {
+    flex: 1;
+    text-align: center;
+    font-size: var(--tv-type-meta);
+    padding: 0 16px;
+}
+.grid-axis {
+    display: flex;
+    height: 36px;
+    flex: none;
+    color: var(--tv-muted);
+    font-size: var(--tv-type-eyebrow);
+    padding-right: 16px;
+}
+.grid-axis > span {
+    width: 270px;
+    flex: none;
+    padding-left: 12px;
+}
+.grid-axis > div {
+    flex: 1;
+    position: relative;
+}
+.grid-axis time {
+    position: absolute;
+    padding-left: 8px;
+}
+.grid-scroll {
+    overflow-y: scroll;
+    overflow-x: hidden;
+    flex: 1;
+    min-height: 120px;
+    padding: 6px 8px;
+    margin: -6px -8px 0;
+}
+.grid-row-space {
+    position: relative;
+}
+.grid-channel-row {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 88px;
+    display: flex;
+    padding: 5px 0;
+}
+.grid-channel {
+    width: 258px;
+    margin-right: 12px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    min-height: 0;
+    background: var(--tv-surface);
+}
+.grid-channel .channel-logo {
+    width: 48px;
+    height: 48px;
+    flex: none;
+    margin-right: 12px;
+}
+.grid-channel > span:last-child {
+    min-width: 0;
+}
+.grid-channel strong {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--tv-font-serif);
+    font-weight: 600;
+    font-size: var(--tv-type-meta);
+}
+.grid-channel small {
+    display: block;
+    font-size: var(--tv-type-eyebrow);
+    color: var(--tv-muted);
+    margin-top: 2px;
+}
+.grid-channel.is-playing {
+    background: #234334;
+}
+.grid-channel.is-playing small {
+    color: var(--tv-text);
+}
+.grid-program-track {
+    flex: 1;
+    position: relative;
+    min-width: 0;
+}
+.grid-program {
+    position: absolute;
+    height: 100%;
+    padding: 6px 14px;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    background: #1b2722;
+    border: 3px solid var(--tv-bg);
+    border-radius: 0;
+    line-height: 1.2;
+}
+.grid-program.on-air {
+    background: #2b4034;
+}
+.grid-program:focus {
+    z-index: 3;
+}
+.grid-program time {
+    display: block;
+    font-size: var(--tv-type-eyebrow);
+    color: var(--tv-muted);
+}
+.grid-program strong {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: var(--tv-type-meta);
+    font-weight: 500;
+    margin-top: 4px;
+}
+.grid-empty {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    color: var(--tv-muted);
+    font-size: var(--tv-type-eyebrow);
+}
+/* This is a time-position marker, not a decorative side accent. */
+.grid-now-line {
+    position: absolute;
+    z-index: 2;
+    width: 2px;
+    height: 100%;
+    background: var(--tv-accent);
+    pointer-events: none;
+    opacity: 0.75;
+}
+.grid-details {
+    display: flex;
+    flex: none;
+    padding-top: 22px;
+    margin-top: 12px;
+}
+.grid-details > div:first-child {
+    flex: 1;
+    min-width: 0;
+    padding-right: 32px;
+}
+.grid-details small {
+    color: var(--tv-muted);
+    font-size: var(--tv-type-eyebrow);
+}
+.grid-details h2 {
+    font-family: var(--tv-font-serif);
+    font-weight: 600;
+    font-size: var(--tv-type-heading);
+    margin: 8px 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.grid-description {
+    height: 72px;
+    overflow-y: scroll;
+    font-size: var(--tv-type-eyebrow);
+    line-height: 1.6;
+    color: var(--tv-muted);
+    padding-right: 16px;
+}
+.grid-details-actions {
+    display: flex;
+    flex-direction: column;
+    width: 270px;
+    flex: none;
+}
+.grid-details-actions button {
+    min-height: var(--tv-control-height);
+    font-size: var(--tv-type-meta);
+    padding: 8px 20px;
+    margin-bottom: var(--tv-space-1);
+}
+.grid-loading {
+    padding: 12px;
+}
+.grid-categories {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    max-width: 720px;
+}
+.grid-categories > button {
+    margin-bottom: 20px;
+}
+.grid-categories .channels {
+    flex: 1;
+    min-height: 0;
+}
+.drawer-grid-button {
+    margin-bottom: 20px;
+}
+@media (max-width: 1400px) {
+    .grid-guide {
+        padding: 20px 28px;
+    }
+    .grid-guide-header {
+        margin-bottom: 12px;
+    }
+    .grid-guide-header h1 {
+        font-size: 28px;
+    }
+    .grid-toolbar {
+        margin-bottom: 12px;
+    }
+    .grid-toolbar button {
+        font-size: 16px;
+        padding: 10px 14px;
+        min-height: 44px;
+        margin-right: 8px;
+    }
+    .grid-date {
+        font-size: 17px;
+        padding: 0 4px;
+    }
+    .grid-axis > span {
+        width: 240px;
+    }
+    .grid-channel {
+        width: 228px;
+    }
+    .grid-details {
+        padding-top: 12px;
+        margin-top: 8px;
+    }
+    .grid-details h2 {
+        font-size: 24px;
+    }
+    .grid-description {
+        height: 56px;
+        font-size: 17px;
+    }
+    .grid-details-actions {
+        width: 240px;
+    }
+}

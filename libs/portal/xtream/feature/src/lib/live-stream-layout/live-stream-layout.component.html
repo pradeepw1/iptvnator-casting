@@ -1,0 +1,383 @@
+@let isEmbeddedPlayer = usesEmbeddedPlayer();
+@let streamUrl = activeStreamUrl();
+@let showRestoreHandle = isSidebarCollapsed() && !guide.isOpen();
+
+@if (showLiveChannelSidebar()) {
+    <div
+        class="sidebar"
+        [class.sidebar-collapsed]="isSidebarCollapsed()"
+        [class.sidebar--guide-hidden]="guide.isOpen()"
+        [attr.inert]="isSidebarCollapsed() || guide.isOpen() ? '' : null"
+        appResizable
+        [minWidth]="250"
+        [maxWidth]="600"
+        [defaultWidth]="400"
+        storageKey="live-channels-sidebar-width"
+    >
+        <div class="sidebar-header">
+            @if (livePanels.canOpenCategoriesPopover()) {
+                <!-- The categories rail is folded: the title becomes the way
+                     back to it (a dropdown of the same list) so switching
+                     categories stays one click away. -->
+                <button
+                    #showCategoriesButton
+                    mat-icon-button
+                    type="button"
+                    class="sidebar-show-categories"
+                    data-test-id="live-show-categories"
+                    [attr.aria-label]="'LAYOUT.SHOW_CATEGORIES' | translate"
+                    [matTooltip]="'LAYOUT.SHOW_CATEGORIES' | translate"
+                    (click)="livePanels.showCategories()"
+                >
+                    <mat-icon>chevron_right</mat-icon>
+                </button>
+                <button
+                    #categoryDropdown
+                    type="button"
+                    class="category-dropdown"
+                    data-test-id="live-category-dropdown"
+                    aria-haspopup="dialog"
+                    aria-expanded="false"
+                    [attr.aria-label]="'LAYOUT.CHOOSE_CATEGORY' | translate"
+                    (click)="livePanels.openCategoriesPopover(categoryDropdown)"
+                >
+                    <span class="category-title">
+                        {{
+                            selectedCategoryInfo()?.name ??
+                                ((selectedCategoryInfo()
+                                    ? 'HOME.PLAYLISTS.CHANNELS'
+                                    : 'PORTALS.ALL_ITEMS'
+                                ) | translate)
+                        }}
+                    </span>
+                    @if (sidebarItemCount()) {
+                        <span class="category-count">{{
+                            sidebarItemCount()
+                        }}</span>
+                    }
+                    <mat-icon class="category-dropdown__caret"
+                        >expand_more</mat-icon
+                    >
+                </button>
+            } @else {
+                <div class="category-heading">
+                    <h2 class="category-title">
+                        {{
+                            selectedCategoryInfo()?.name ??
+                                ((selectedCategoryInfo()
+                                    ? 'HOME.PLAYLISTS.CHANNELS'
+                                    : 'PORTALS.ALL_ITEMS'
+                                ) | translate)
+                        }}
+                    </h2>
+                    @if (sidebarItemCount()) {
+                        <span class="category-count">{{
+                            sidebarItemCount()
+                        }}</span>
+                    }
+                </div>
+            }
+            @if (channelNavigation.canReveal()) {
+                <button
+                    mat-icon-button
+                    type="button"
+                    [attr.aria-label]="
+                        'CHANNELS.SHOW_PLAYING_CHANNEL' | translate
+                    "
+                    [matTooltip]="'CHANNELS.SHOW_PLAYING_CHANNEL' | translate"
+                    (click)="channelNavigation.reveal()"
+                >
+                    <mat-icon>list_alt</mat-icon>
+                </button>
+            }
+            <button
+                mat-icon-button
+                [matMenuTriggerFor]="channelSortMenu"
+                [matTooltip]="
+                    ('WORKSPACE.SORT_LABEL' | translate) +
+                    (liveChannelSortLabelKey() | translate)
+                "
+                [attr.aria-label]="'CHANNELS.SORT_CHANNELS' | translate"
+            >
+                <mat-icon>sort_by_alpha</mat-icon>
+            </button>
+            <button
+                mat-icon-button
+                type="button"
+                [attr.aria-label]="'LAYOUT.HIDE_PANELS' | translate"
+                [matTooltip]="'LAYOUT.HIDE_PANELS_TOOLTIP' | translate"
+                (click)="livePanels.collapsePanels()"
+            >
+                <mat-icon>chevron_left</mat-icon>
+            </button>
+            <mat-menu #channelSortMenu="matMenu">
+                <button
+                    mat-menu-item
+                    [appMenuItemRadio]="liveChannelSortMode() === 'server'"
+                    (click)="setLiveChannelSortMode('server')"
+                >
+                    <mat-icon appMenuItemRadioCheck>check</mat-icon>
+                    <span>{{ 'CHANNELS.SORT_SERVER_ORDER' | translate }}</span>
+                </button>
+                <button
+                    mat-menu-item
+                    [appMenuItemRadio]="liveChannelSortMode() === 'name-asc'"
+                    (click)="setLiveChannelSortMode('name-asc')"
+                >
+                    <mat-icon appMenuItemRadioCheck>check</mat-icon>
+                    <span>{{ 'WORKSPACE.SORT_NAME_ASC' | translate }}</span>
+                </button>
+                <button
+                    mat-menu-item
+                    [appMenuItemRadio]="liveChannelSortMode() === 'name-desc'"
+                    (click)="setLiveChannelSortMode('name-desc')"
+                >
+                    <mat-icon appMenuItemRadioCheck>check</mat-icon>
+                    <span>{{ 'WORKSPACE.SORT_NAME_DESC' | translate }}</span>
+                </button>
+            </mat-menu>
+        </div>
+        <app-portal-channels-list
+            [revealRequest]="channelNavigation.revealRequest()"
+            [sortMode]="liveChannelSortMode()"
+            [searchTermInput]="workspaceSearchTerm()"
+            (playClicked)="playLive($event)"
+            (playbackRequested)="playLive($event, true)"
+        />
+    </div>
+}
+<div
+    class="content-container"
+    [class.is-guide]="guide.isOpen()"
+    [class.is-guide-collapsed]="guide.collapsed()"
+>
+    @if (showRestoreHandle) {
+        <button
+            #restoreButton
+            mat-icon-button
+            type="button"
+            class="sidebar-restore"
+            [attr.aria-label]="'LAYOUT.SHOW_PANELS' | translate"
+            [matTooltip]="'LAYOUT.SHOW_PANELS_TOOLTIP' | translate"
+            (click)="livePanels.toggleSidebar()"
+        >
+            <mat-icon>chevron_right</mat-icon>
+        </button>
+    }
+    @if (
+        streamUrl || (!isEmbeddedPlayer && guide.isOpen() && guide.available())
+    ) {
+        @if (isEmbeddedPlayer) {
+            <div
+                class="video-player"
+                [attr.data-player-shortcuts-suspended]="
+                    guide.isOpen() ? '' : null
+                "
+            >
+                <app-web-player-view
+                    #inlinePlayer
+                    [playbackSessionKey]="playbackSessionKey()"
+                    [streamUrl]="streamUrl"
+                    [title]="activePlayback()?.title ?? ''"
+                    [playback]="activePlayback()"
+                    [timelineSegments]="catchupTimelineSegments()"
+                    [recordingMetadata]="recordingMetadata()"
+                    (playbackStarted)="onInlinePlaybackStarted($event)"
+                    (externalFallbackRequested)="
+                        handleExternalFallbackRequest($event)
+                    "
+                    (recordingStopped)="onRecordingStopped($event)"
+                />
+                @if (guide.isOpen()) {
+                    <ng-container *ngTemplateOutlet="guideNowPlaying" />
+                }
+            </div>
+        } @else if (guide.isOpen()) {
+            <div class="video-player guide-dock--external">
+                <ng-container *ngTemplateOutlet="guideNowPlaying" />
+            </div>
+        }
+        @if (guide.isOpen()) {
+            <app-epg-guide
+                class="epg-guide-host"
+                tabindex="-1"
+                (close)="guide.close()"
+            />
+        }
+        @if (supportsProviderEpg && !guide.isOpen()) {
+            <div
+                class="epg"
+                [class.epg--inline]="isEmbeddedPlayer"
+                [class.epg--list]="epgViewMode() === 'list'"
+                [class.epg-collapsed]="
+                    isEmbeddedPlayer && isLiveEpgPanelCollapsed()
+                "
+            >
+                <ng-container *ngTemplateOutlet="epgPanelContent" />
+            </div>
+        }
+    } @else if (!showLiveChannelSidebar()) {
+        <!-- The way back to the folded categories rail, for the views with no
+             channels header. Outside the loading switch so the same button
+             (and its focus) survives the loading to ready swap. -->
+        @if (livePanels.isCategoriesRailFolded()) {
+            <button
+                #allItemsShowButton
+                mat-icon-button
+                type="button"
+                class="all-items-show-categories"
+                data-test-id="live-show-categories"
+                [attr.aria-label]="'LAYOUT.SHOW_CATEGORIES' | translate"
+                [matTooltip]="'LAYOUT.SHOW_CATEGORIES' | translate"
+                (click)="livePanels.showCategories()"
+            >
+                <mat-icon>chevron_right</mat-icon>
+            </button>
+        }
+        @if (isSelectedTypeContentLoading()) {
+            <div class="live-loading-content">
+                <app-portal-channels-list
+                    [sortMode]="liveChannelSortMode()"
+                    [searchTermInput]="workspaceSearchTerm()"
+                    (playClicked)="playLive($event)"
+                    (playbackRequested)="playLive($event, true)"
+                />
+            </div>
+        } @else {
+            <div class="live-all-items-content category-content-layout">
+                <!-- The floating show-categories and restore handles sit over
+                     this header's start; the modifiers reserve their room. -->
+                <div
+                    class="category-content-header"
+                    [class.category-content-header--rail-folded]="
+                        livePanels.isCategoriesRailFolded()
+                    "
+                    [class.category-content-header--panels-collapsed]="
+                        showRestoreHandle
+                    "
+                >
+                    <div class="category-meta">
+                        <h2 class="category-title">
+                            {{ 'PORTALS.ALL_ITEMS' | translate }}
+                        </h2>
+                        <div class="category-subtitle">
+                            {{
+                                (liveRootItemCount() === 1
+                                    ? 'WORKSPACE.CONTEXT.ITEM_COUNT_ONE'
+                                    : 'WORKSPACE.CONTEXT.ITEM_COUNT_OTHER'
+                                ) | translate: { count: liveRootItemCount() }
+                            }}
+                        </div>
+                    </div>
+                </div>
+                <app-grid-list
+                    class="live-all-items-grid app-scrollbar"
+                    appInfiniteScroll
+                    [infiniteHasMore]="liveRootHasMore()"
+                    [infiniteItemCount]="liveRootItems().length"
+                    [infiniteResetKey]="'live-root'"
+                    (infiniteLoadMore)="onLiveRootLoadMore()"
+                    [isLoading]="isSelectedTypeContentLoading()"
+                    [items]="liveRootItems()"
+                    [searchTerm]="workspaceSearchTerm()"
+                    [variant]="'logo'"
+                    [type]="'live'"
+                    (itemClicked)="onLiveRootItemClick($event)"
+                />
+            </div>
+        }
+    } @else if (isSidebarCollapsed()) {
+        <app-channel-list-hidden-state (restore)="livePanels.toggleSidebar()" />
+    } @else {
+        <app-portal-empty-state
+            icon="live_tv"
+            [message]="'CHANNELS.SELECT_CHANNEL_PLAYBACK' | translate"
+        />
+    }
+</div>
+
+<ng-template #epgPanelContent>
+    <div class="epg-content">
+        @if (epgViewMode() === 'list') {
+            <app-epg-list-view
+                [guideAvailable]="guide.available()"
+                (openGuide)="guide.open()"
+                [programs]="controlledEpgPrograms()"
+                [offsetMinutes]="epgOffsetMinutes()"
+                [channelName]="activePlayback()?.title ?? ''"
+                [channelLogo]="activePlayback()?.thumbnail ?? ''"
+                [sourceLabel]="'WORKSPACE.SHELL.XTREAM_CODE' | translate"
+                [archiveContextKey]="archiveContextKey()"
+                [archiveDownloadAvailable]="archiveDownloadsAvailable()"
+                [archivePlaybackAvailable]="archivePlaybackAvailable()"
+                [archiveDays]="controlledArchiveDays()"
+                [activeProgram]="activeCatchupProgram()"
+                [isLivePlayback]="!showReturnToLive()"
+                [loading]="isLoadingEpg()"
+                [selectedDate]="selectedLiveEpgDate()"
+                [collapsed]="usesEmbeddedPlayer() && isLiveEpgPanelCollapsed()"
+                [summary]="liveEpgPanelSummary()"
+                [summaryLabelKey]="liveEpgPanelSummaryLabelKey()"
+                (programActivated)="onProgramActivated($event)"
+                (returnToLive)="returnToLivePlayback()"
+                (selectedDateChange)="onLiveEpgSelectedDateChange($event)"
+                (collapsedChange)="onLiveEpgPanelCollapsedChange($event)"
+            />
+        } @else {
+            <app-epg-timeline
+                [guideAvailable]="guide.available()"
+                (openGuide)="guide.open()"
+                [programs]="controlledEpgPrograms()"
+                [offsetMinutes]="epgOffsetMinutes()"
+                [channelName]="activePlayback()?.title ?? ''"
+                [channelLogo]="activePlayback()?.thumbnail ?? ''"
+                [sourceLabel]="'WORKSPACE.SHELL.XTREAM_CODE' | translate"
+                [archiveContextKey]="archiveContextKey()"
+                [archiveDownloadAvailable]="archiveDownloadsAvailable()"
+                [archivePlaybackAvailable]="archivePlaybackAvailable()"
+                [archiveDays]="controlledArchiveDays()"
+                [activeProgram]="activeCatchupProgram()"
+                [isLivePlayback]="!showReturnToLive()"
+                [loading]="isLoadingEpg()"
+                [selectedDate]="selectedLiveEpgDate()"
+                [collapsed]="usesEmbeddedPlayer() && isLiveEpgPanelCollapsed()"
+                [summary]="liveEpgPanelSummary()"
+                [summaryLabelKey]="liveEpgPanelSummaryLabelKey()"
+                (programActivated)="onProgramActivated($event)"
+                (returnToLive)="returnToLivePlayback()"
+                (selectedDateChange)="onLiveEpgSelectedDateChange($event)"
+                (collapsedChange)="onLiveEpgPanelCollapsedChange($event)"
+            />
+        }
+    </div>
+</ng-template>
+
+<!-- Stamped into the player's fullscreen channel panel (FULLSCREEN_CHANNEL_PANEL). -->
+<ng-template #fullscreenChannelPanel let-searchTerm="searchTerm">
+    <app-portal-channels-list
+        #fullscreenList
+        [sortMode]="liveChannelSortMode()"
+        [channelsOverride]="fullscreenPanelChannels()"
+        [searchTermInput]="searchTerm()"
+        [fullscreenPanelCopy]="true"
+        (playClicked)="
+            playLive($event, undefined, fullscreenList.filteredChannels())
+        "
+        (playbackRequested)="
+            playLive($event, true, fullscreenList.filteredChannels())
+        "
+    />
+</ng-template>
+
+<ng-template #guideNowPlaying>
+    <app-epg-guide-now-playing
+        [channelName]="guideNowPlayingChannel()"
+        [program]="guideNowPlayingProgram()"
+        [offsetMinutes]="epgOffsetMinutes()"
+        [collapsed]="guide.collapsed() || !usesEmbeddedPlayer()"
+        [collapsible]="usesEmbeddedPlayer()"
+        (keydown)="guide.handleKey($event)"
+        (closeRequested)="guide.close()"
+        (collapsedChange)="guide.setCollapsed($event)"
+    />
+</ng-template>

@@ -1,0 +1,38 @@
+.horizontal-rail {
+    position: relative;
+    min-width: 0;
+    flex: none;
+    /* Arrows sit in the safe-area gutter so cards keep the content edge. */
+    padding: 0 48px;
+    margin: 0 -48px;
+}
+[data-tv-horizontal] {
+    scrollbar-width: none;
+}
+[data-tv-horizontal]::-webkit-scrollbar {
+    display: none;
+    height: 0;
+}
+.rail-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    min-height: var(--tv-control-height);
+    padding: 6px;
+}
+.rail-arrow-left {
+    left: 0;
+}
+.rail-arrow-right {
+    right: 0;
+}
+@media (max-width: 1400px) {
+    /* Narrower windows have a gutter smaller than the arrows. */
+    .horizontal-rail {
+        margin: 0;
+    }
+}

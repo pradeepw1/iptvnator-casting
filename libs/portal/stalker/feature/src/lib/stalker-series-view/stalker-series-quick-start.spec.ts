@@ -1,0 +1,258 @@
+import type { VodSeriesSeasonVm } from '@iptvnator/portal/stalker/data-access';
+import type {
+    PlaybackPositionData,
+    XtreamSerieEpisode,
+} from '@iptvnator/shared/interfaces';
+import { getStalkerSeriesQuickStartButton } from './stalker-series-quick-start';
+
+function season(
+    seasonNumber: string,
+    loadedEpisodes: number,
+    episodesLoaded = loadedEpisodes > 0
+): VodSeriesSeasonVm {
+    return {
+        id: `season-${seasonNumber}`,
+        video_id: 'video-1',
+        name: `Season ${seasonNumber}`,
+        season_number: seasonNumber,
+        episodes: Array.from(
+            { length: loadedEpisodes },
+            (_, index) => ({ id: `${seasonNumber}-${index + 1}` }) as never
+        ),
+        isLoading: false,
+        isExpanded: false,
+        episodesLoaded,
+    };
+}
+
+/** Season `seasonNumber`'s mapped episodes, ids `seasonNumber * 100 + n`. */
+function mapped(seasonNumber: number, count: number): XtreamSerieEpisode[] {
+    return Array.from(
+        { length: count },
+        (_, index) =>
+            ({
+                id: String(seasonNumber * 100 + index + 1),
+                episode_num: index + 1,
+                title: `Episode ${index + 1}`,
+                season: seasonNumber,
+                container_extension: 'mpg',
+                info: {},
+                custom_sid: 'vod-series',
+                added: '',
+                direct_source: '',
+            }) as XtreamSerieEpisode
+    );
+}
+
+function watched(...ids: number[]): Map<number, PlaybackPositionData> {
+    return new Map(
+        ids.map((id, index) => [
+            id,
+            {
+                contentXtreamId: id,
+                contentType: 'episode',
+                seriesXtreamId: 1,
+                positionSeconds: 95,
+                durationSeconds: 100,
+                updatedAt: `2026-10-05T1${index}:00:00.000Z`,
+            },
+        ])
+    );
+}
+
+describe('getStalkerSeriesQuickStartButton with extras (season 0)', () => {
+    // Specials and season 2 not loaded yet; season 1 loaded.
+    const seasons = [season('0', 0), season('1', 4), season('2', 0)];
+    const mappedSeasons = { '0': [], '1': mapped(1, 4), '2': [] };
+
+    it('plays the next regular episode without loading Specials first', () => {
+        const button = getStalkerSeriesQuickStartButton({
+            isVodSeries: true,
+            mappedSeasons,
+            playbackPositions: watched(101, 102, 103),
+            vodSeriesSeasons: seasons,
+        });
+
+        expect(button?.lazySeason).toBeNull();
+        expect(button?.action?.episode.id).toBe('104');
+    });
+
+    it('loads the next regular season, not Specials, once the loaded run is watched', () => {
+        const button = getStalkerSeriesQuickStartButton({
+            isVodSeries: true,
+            mappedSeasons,
+            playbackPositions: watched(101, 102, 103, 104),
+            vodSeriesSeasons: seasons,
+        });
+
+        expect(button?.lazySeason?.season_number).toBe('2');
+        expect(button?.episodeLabel).toBe('S02E01');
+    });
+
+    it('loads the first regular season, not Specials, when nothing is loaded', () => {
+        const button = getStalkerSeriesQuickStartButton({
+            isVodSeries: true,
+            mappedSeasons: { '0': [], '1': [], '2': [] },
+            playbackPositions: new Map(),
+            vodSeriesSeasons: [season('0', 0), season('1', 0), season('2', 0)],
+        });
+
+        expect(button?.lazySeason?.season_number).toBe('1');
+    });
+
+    it('loads a season the portal has not answered for, not one that came back empty', () => {
+        const button = getStalkerSeriesQuickStartButton({
+            isVodSeries: true,
+            mappedSeasons: { '0': [], '1': [], '2': [] },
+            playbackPositions: new Map(),
+            vodSeriesSeasons: [
+                season('0', 0),
+                season('1', 0, true),
+                season('2', 0),
+            ],
+        });
+
+        expect(button?.lazySeason?.season_number).toBe('2');
+    });
+
+    it('loads a pending regular season before playing or resuming an extra', () => {
+        // The pinned season 1 failed or is in flight; Specials was opened.
+        const onlyExtrasLoaded = {
+            isVodSeries: true,
+            mappedSeasons: { '0': mapped(0, 2), '1': [], '2': [] },
+            vodSeriesSeasons: [season('0', 2), season('1', 0), season('2', 0)],
+        };
+
+        const play = getStalkerSeriesQuickStartButton({
+            ...onlyExtrasLoaded,
+            playbackPositions: new Map(),
+        });
+        const resume = getStalkerSeriesQuickStartButton({
+            ...onlyExtrasLoaded,
+            playbackPositions: new Map([
+                [
+                    1,
+                    {
+                        contentXtreamId: 1,
+                        contentType: 'episode',
+                        seriesXtreamId: 1,
+                        positionSeconds: 40,
+                        durationSeconds: 100,
+                    },
+                ],
+            ]),
+        });
+
+        for (const button of [play, resume]) {
+            expect(button?.lazySeason?.season_number).toBe('1');
+            expect(button?.episodeLabel).toBe('S01E01');
+        }
+    });
+
+    it('still loads Specials when every regular season came back empty', () => {
+        const button = getStalkerSeriesQuickStartButton({
+            isVodSeries: true,
+            mappedSeasons: { '0': [], '1': [], '2': [] },
+            playbackPositions: new Map(),
+            vodSeriesSeasons: [
+                season('0', 0),
+                season('1', 0, true),
+                season('2', 0, true),
+            ],
+        });
+
+        expect(button?.lazySeason?.season_number).toBe('0');
+    });
+
+    it('offers the next unwatched episode after the last watched episode when skipping ahead', () => {
+        const button = getStalkerSeriesQuickStartButton({
+            isVodSeries: true,
+            mappedSeasons: {
+                '1': [],
+                '2': [],
+                '3': [],
+                '4': mapped(4, 4),
+            },
+            playbackPositions: watched(401, 402),
+            vodSeriesSeasons: [
+                season('1', 0),
+                season('2', 0),
+                season('3', 0),
+                season('4', 4),
+            ],
+        });
+
+        expect(button?.lazySeason).toBeNull();
+        expect(button?.action?.episode.id).toBe('403');
+        expect(button?.episodeLabel).toContain('S04E03');
+    });
+
+    it('keeps the most recent short launch even with a later season pending', () => {
+        const playbackPositions = watched(401, 402);
+        playbackPositions.set(101, {
+            contentXtreamId: 101,
+            contentType: 'episode',
+            positionSeconds: 5,
+            durationSeconds: 100,
+            updatedAt: '2026-10-05T12:00:00.000Z',
+        });
+        const button = getStalkerSeriesQuickStartButton({
+            isVodSeries: true,
+            mappedSeasons: { '1': mapped(1, 2), '4': mapped(4, 2), '5': [] },
+            playbackPositions,
+            vodSeriesSeasons: [season('1', 2), season('4', 2), season('5', 0)],
+        });
+
+        expect(button?.lazySeason).toBeNull();
+        expect(button?.action?.episode.id).toBe('101');
+    });
+
+    it.each([false, true])(
+        'loads the following season before returning to a skipped episode in the same season (older resume: %s)',
+        (hasOlderResume) => {
+            const playbackPositions = watched(402);
+            if (hasOlderResume) {
+                playbackPositions.set(401, {
+                    contentXtreamId: 401,
+                    contentType: 'episode',
+                    positionSeconds: 25,
+                    durationSeconds: 100,
+                    updatedAt: '2026-10-04T10:00:00.000Z',
+                });
+            }
+            const button = getStalkerSeriesQuickStartButton({
+                isVodSeries: true,
+                mappedSeasons: { '4': mapped(4, 2), '5': [] },
+                playbackPositions,
+                vodSeriesSeasons: [season('4', 2), season('5', 0)],
+            });
+
+            expect(button?.lazySeason?.season_number).toBe('5');
+            expect(button?.episodeLabel).toBe('S05E01');
+        }
+    );
+
+    it('loads the next unloaded season after a finished skipped-ahead season instead of wrapping to season 1', () => {
+        const button = getStalkerSeriesQuickStartButton({
+            isVodSeries: true,
+            mappedSeasons: {
+                '1': mapped(1, 2),
+                '2': [],
+                '3': [],
+                '4': mapped(4, 2),
+                '5': [],
+            },
+            playbackPositions: watched(401, 402),
+            vodSeriesSeasons: [
+                season('1', 2),
+                season('2', 0),
+                season('3', 0),
+                season('4', 2),
+                season('5', 0),
+            ],
+        });
+
+        expect(button?.lazySeason?.season_number).toBe('5');
+        expect(button?.episodeLabel).toBe('S05E01');
+    });
+});

@@ -1,0 +1,262 @@
+import {
+    ExternalPlayerErrorCode,
+    ExternalPlayerName,
+    ExternalPlayerSession,
+    PlayerContentInfo,
+    stripExternalPlayerErrorTag,
+} from '@iptvnator/shared/interfaces';
+
+interface CreateExternalPlayerSessionOptions {
+    player: ExternalPlayerName;
+    launchId?: string;
+    title: string;
+    thumbnail?: string | null;
+    streamUrl: string;
+    contentInfo?: PlayerContentInfo;
+}
+
+interface UpdateExternalPlayerSessionOptions {
+    status?: ExternalPlayerSession['status'];
+    error?: string;
+    errorCode?: ExternalPlayerErrorCode;
+    canClose?: boolean;
+    reuseAvailable?: boolean;
+    closedByRequest?: true;
+    playbackIdle?: boolean;
+    playbackUnverified?: boolean;
+    mediaLoaded?: boolean;
+    mediaObservationUnavailable?: boolean;
+    mediaReadinessTimedOut?: boolean;
+}
+
+interface ExternalPlayerSessionRuntime {
+    snapshot: ExternalPlayerSession;
+    close?: (exact?: boolean) => Promise<void> | void;
+    cancelQueued?: () => boolean;
+    closeRequested?: boolean;
+}
+
+interface MarkExternalPlayerSessionErrorOptions {
+    canClose?: boolean;
+    /** What the renderer shows; without one it shows a generic failure. */
+    code?: ExternalPlayerErrorCode;
+}
+
+function isRestorableSession(session: ExternalPlayerSession): boolean {
+    return (
+        session.status === 'launching' ||
+        session.status === 'opened' ||
+        session.status === 'playing' ||
+        (session.status === 'error' && session.canClose)
+    );
+}
+
+export class ExternalPlayerSessionRegistry {
+    private readonly sessions = new Map<string, ExternalPlayerSessionRuntime>();
+    private activeSessionId: string | null = null;
+    private launchCount = 0;
+
+    constructor(
+        private readonly onUpdate: (session: ExternalPlayerSession) => void
+    ) {}
+
+    beginSession(
+        options: CreateExternalPlayerSessionOptions
+    ): ExternalPlayerSession {
+        const startedAt = new Date().toISOString();
+        const session: ExternalPlayerSession = {
+            id: crypto.randomUUID(),
+            ...(typeof options.launchId === 'string' &&
+            options.launchId.length <= 128
+                ? { launchId: options.launchId }
+                : {}),
+            player: options.player,
+            status: 'launching',
+            title: options.title,
+            thumbnail: options.thumbnail ?? null,
+            streamUrl: options.streamUrl,
+            contentInfo: options.contentInfo,
+            startedAt,
+            updatedAt: startedAt,
+            launchOrder: ++this.launchCount,
+            canClose: false,
+        };
+
+        this.sessions.set(session.id, { snapshot: session });
+        this.activeSessionId = session.id;
+        this.onUpdate(session);
+        return session;
+    }
+
+    getActiveSessionId(): string | null {
+        return this.activeSessionId;
+    }
+
+    getSession(id: string): ExternalPlayerSession | null {
+        return this.sessions.get(id)?.snapshot ?? null;
+    }
+
+    isNewerLaunch(id: string | null, session: ExternalPlayerSession): boolean {
+        const order = id ? this.getSession(id)?.launchOrder : undefined;
+        return (order ?? 0) > (session.launchOrder ?? 0);
+    }
+
+    /**
+     * Re-publish the exact still-live session that a failed replacement had
+     * temporarily displaced. Its existing closer remains attached.
+     */
+    restoreActiveSession(
+        id: string,
+        displacedSessionId: string
+    ): ExternalPlayerSession | null {
+        const runtime = this.sessions.get(id);
+        if (
+            !runtime ||
+            !isRestorableSession(runtime.snapshot) ||
+            this.activeSessionId !== displacedSessionId
+        ) {
+            return null;
+        }
+
+        this.activeSessionId = id;
+        this.onUpdate({
+            ...runtime.snapshot,
+            updatedAt: new Date().toISOString(),
+            restoredFromSessionId: displacedSessionId,
+        });
+        return runtime.snapshot;
+    }
+
+    attachCloser(
+        id: string,
+        close: (exact?: boolean) => Promise<void> | void,
+        cancelQueued?: () => boolean
+    ): ExternalPlayerSession | null {
+        const runtime = this.sessions.get(id);
+        if (!runtime) {
+            return null;
+        }
+
+        runtime.close = close;
+        runtime.cancelQueued = cancelQueued;
+        return this.updateSession(id, { canClose: true });
+    }
+
+    updateSession(
+        id: string,
+        options: UpdateExternalPlayerSessionOptions
+    ): ExternalPlayerSession | null {
+        const runtime = this.sessions.get(id);
+        if (!runtime) {
+            return null;
+        }
+
+        const next: ExternalPlayerSession = {
+            ...runtime.snapshot,
+            ...options,
+            updatedAt: new Date().toISOString(),
+        };
+        runtime.snapshot = next;
+        this.onUpdate(next);
+        return next;
+    }
+
+    markOpened(id: string): ExternalPlayerSession | null {
+        const current = this.getSession(id);
+        if (!current || current.status !== 'launching') {
+            return current;
+        }
+        return this.updateSession(id, { status: 'opened' });
+    }
+
+    markPlaying(id: string): ExternalPlayerSession | null {
+        const current = this.getSession(id);
+        if (
+            !current ||
+            current.status === 'playing' ||
+            current.status === 'error' ||
+            current.status === 'closed'
+        ) {
+            return current;
+        }
+
+        return this.updateSession(id, { status: 'playing' });
+    }
+
+    markClosed(id: string, requested = false): ExternalPlayerSession | null {
+        const current = this.getSession(id);
+        if (!current || current.status === 'closed') {
+            return current;
+        }
+        if (this.activeSessionId === id) {
+            this.activeSessionId = null;
+        }
+        return this.updateSession(id, {
+            status: 'closed',
+            canClose: false,
+            closedByRequest:
+                requested || this.isCloseRequested(id) ? true : undefined,
+        });
+    }
+
+    isCloseRequested(id: string): boolean {
+        return this.sessions.get(id)?.closeRequested === true;
+    }
+
+    requestClose(id: string | null): void {
+        const runtime = id ? this.sessions.get(id) : undefined;
+        if (runtime) runtime.closeRequested = true;
+    }
+
+    markError(
+        id: string,
+        error: string,
+        options: MarkExternalPlayerSessionErrorOptions = {}
+    ): ExternalPlayerSession | null {
+        const current = this.getSession(id);
+        if (!current || current.status === 'closed') {
+            return current;
+        }
+
+        // The code tag only carries the code across IPC; the renderer shows
+        // the stored error as detail.
+        return this.updateSession(id, {
+            status: 'error',
+            error: stripExternalPlayerErrorTag(error),
+            errorCode: options.code,
+            canClose: options.canClose ?? false,
+        });
+    }
+
+    async closeSession(
+        id: string,
+        exact = false
+    ): Promise<ExternalPlayerSession | null> {
+        const runtime = this.sessions.get(id);
+        if (!runtime) {
+            return null;
+        }
+
+        // A renderer can deliver a delayed duplicate Stop after the exact
+        // child has already exited and a newer external player owns the
+        // process slot. Never re-enter the terminal session's saved closer:
+        // its protocol endpoint may since have been reused by another child.
+        if (runtime.snapshot.status === 'closed') {
+            return runtime.snapshot;
+        }
+
+        if (exact && runtime.cancelQueued)
+            return runtime.cancelQueued()
+                ? this.markClosed(id, true)
+                : runtime.snapshot;
+        if (exact && !runtime.close) return runtime.snapshot;
+        this.requestClose(id);
+
+        // A failed closer cannot prove that the underlying process stopped.
+        // Preserve the live session and propagate the failure so callers do
+        // not start a replacement process alongside it.
+        await (exact ? runtime.close?.(true) : runtime.close?.());
+
+        return this.markClosed(id);
+    }
+}
