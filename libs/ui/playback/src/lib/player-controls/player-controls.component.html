@@ -9,6 +9,39 @@
     </div>
 }
 
+@if (controller().cast?.statusCard(); as card) {
+    <div
+        class="player-controls__cast-card"
+        [class.player-controls__cast-card--failed]="card.failed"
+        role="status"
+        data-test-id="player-cast-status"
+    >
+        <mat-icon class="player-controls__cast-card-icon">{{
+            card.failed ? 'cast' : 'cast_connected'
+        }}</mat-icon>
+        <div class="player-controls__cast-card-title">
+            {{ card.titleKey | translate: { device: card.device } }}
+        </div>
+        @if (card.messageKey) {
+            <div class="player-controls__cast-card-message">
+                {{ card.messageKey | translate }}
+            </div>
+        }
+        <button
+            mat-stroked-button
+            type="button"
+            class="player-controls__cast-card-action"
+            (click)="
+                card.failed
+                    ? controller().cast?.dismissError()
+                    : controller().cast?.stop()
+            "
+        >
+            {{ (card.failed ? 'CLOSE' : 'CAST.STOP') | translate }}
+        </button>
+    </div>
+}
+
 @if (showTopScrim()) {
     <div
         class="player-controls__top-scrim"
@@ -408,8 +441,8 @@
                         data-test-id="player-controls-second-stream-button"
                         data-multiview-trigger
                         [matMenuTriggerFor]="multiviewMenu"
-                        (menuOpened)="multiviewMenuOpen.set(true)"
-                        (menuClosed)="multiviewMenuOpen.set(false); reveal()"
+                        (menuOpened)="overlayMenuOpen.set(true)"
+                        (menuClosed)="overlayMenuOpen.set(false); reveal()"
                         [attr.aria-label]="'TWO_STREAMS.MULTIVIEW' | translate"
                         [matTooltip]="'TWO_STREAMS.MULTIVIEW' | translate"
                         matTooltipPosition="above"
@@ -517,6 +550,40 @@
                                 : 'fiber_manual_record'
                         }}</mat-icon>
                     </button>
+                }
+
+                @if (controller().cast; as cast) {
+                    @if (
+                        (cast.available() || cast.active()) &&
+                        !(settings.isOpen() && layout.roomy())
+                    ) {
+                        <button
+                            mat-icon-button
+                            type="button"
+                            class="player-controls__button"
+                            data-test-id="player-controls-cast-button"
+                            [class.player-controls__cast-button--active]="
+                                cast.active()
+                            "
+                            [matMenuTriggerFor]="castMenu.menu()"
+                            (menuOpened)="
+                                overlayMenuOpen.set(true); castMenu.opened()
+                            "
+                            (menuClosed)="overlayMenuOpen.set(false); reveal()"
+                            [attr.aria-label]="'CAST.CAST' | translate"
+                            [matTooltip]="'CAST.CAST' | translate"
+                            matTooltipPosition="above"
+                        >
+                            <mat-icon>{{
+                                cast.active() ? 'cast_connected' : 'cast'
+                            }}</mat-icon>
+                        </button>
+                        <app-player-cast-menu
+                            #castMenu
+                            [cast]="cast"
+                            [positionSeconds]="state().positionSeconds"
+                        />
+                    }
                 }
 
                 @if (

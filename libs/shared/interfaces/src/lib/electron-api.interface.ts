@@ -1,6 +1,7 @@
 import type { HostedServerCommand, HostedServerStatus } from './hosted-server.interface';
 export type ElectronBridgeAppMenuAction = 'settings' | 'check-for-updates';
 import type { AppUpdateChannel } from './app-update-channel.util';
+import type { CastBridgeApi } from './cast.interface';
 import type { SourceProbeContext, SourceHealthResult } from './source-health';
 import type { PortalRequestFailureEnvelope } from './portal-request-failure.util';
 import type { XtreamConnectionFailure } from './xtream-connection-test';
@@ -750,7 +751,7 @@ export interface ElectronRecordingItem {
     fileAvailability: ElectronDownloadFileAvailability | 'unknown';
 }
 
-export interface ElectronBridgeApi {
+export interface ElectronBridgeApi extends CastBridgeApi {
     onAppMenuAction: (
         callback: (action: ElectronBridgeAppMenuAction) => void
     ) => () => void;

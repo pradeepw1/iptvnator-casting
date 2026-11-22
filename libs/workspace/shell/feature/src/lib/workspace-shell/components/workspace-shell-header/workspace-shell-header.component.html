@@ -259,6 +259,18 @@
                     <mat-icon>bolt</mat-icon>
                 </button>
             }
+            @if (webVideoCast.supported) {
+                <button
+                    type="button"
+                    mat-icon-button
+                    data-test-id="header-cast-web-video"
+                    (click)="webVideoCast.open()"
+                    [matTooltip]="'CAST.WEB.TITLE' | translate"
+                    [attr.aria-label]="'CAST.WEB.TITLE' | translate"
+                >
+                    <mat-icon>cast</mat-icon>
+                </button>
+            }
             @if (isElectron()) {
                 <span class="download-btn-wrap">
                     @if (hasActiveDownloads()) {

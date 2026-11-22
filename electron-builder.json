@@ -86,7 +86,11 @@
         "entitlements": "apps/electron-backend/macos/entitlements.mac.plist",
         "entitlementsInherit": "apps/electron-backend/macos/entitlements.mac.inherit.plist",
         "notarize": true,
-        "icon": "apps/web/src/assets/icons/favicon.icns"
+        "icon": "apps/web/src/assets/icons/favicon.icns",
+        "extendInfo": {
+            "NSLocalNetworkUsageDescription": "IPTVnator looks for Chromecast and Roku devices on your network so you can cast to your TV.",
+            "NSBonjourServices": ["_googlecast._tcp"]
+        }
     },
     "linux": {
         "category": "Video",

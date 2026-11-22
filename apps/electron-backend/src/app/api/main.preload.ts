@@ -1,5 +1,6 @@
 import { HOSTED_SERVER_ACCESS_CODE, HOSTED_SERVER_CONTROL } from '@iptvnator/shared/interfaces';
 import { createAppMenuListener } from './app-menu-listener';
+import { castBridge } from './cast-bridge';
 import type {
     ElectronBridgeFavoriteReorderUpdate,
     XtreamFavoriteRemovalRef,
@@ -307,6 +308,7 @@ const frameZoomPorts = {
 };
 
 const electronApi: ElectronBridgeApi = {
+    ...castBridge,
     onAppMenuAction: createAppMenuListener(ipcRenderer),
     sourceSyncConnection: () => {
         const result = ipcRenderer.sendSync(SOURCE_SYNC_CONNECTION);

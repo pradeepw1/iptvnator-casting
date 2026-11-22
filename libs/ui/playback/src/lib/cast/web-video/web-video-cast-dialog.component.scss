@@ -1,0 +1,207 @@
+:host {
+    display: block;
+}
+
+.web-video-link {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.web-video-link__field {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.web-video-status {
+    display: grid;
+    gap: 8px;
+    margin-top: 16px;
+    color: var(--app-muted-color);
+    font-size: 13px;
+}
+
+.web-video-error,
+.web-video-devices-empty {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 16px 0 0;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.web-video-error {
+    color: var(--app-danger-text);
+}
+
+.web-video-devices-empty {
+    color: var(--app-muted-color);
+}
+
+.web-video-error mat-icon,
+.web-video-devices-empty mat-icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    font-size: 18px;
+}
+
+// One scroll owner: the dialog body. The list itself does not scroll.
+.web-video-sources {
+    display: grid;
+    gap: 4px;
+    margin-top: 16px;
+}
+
+.web-video-source {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    min-height: 52px;
+    padding: 6px 12px;
+    border: 1px solid var(--app-separator);
+    border-radius: 10px;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--app-hover-overlay);
+    }
+
+    &:focus-within {
+        outline: var(--app-focus-ring-width, 2px) solid var(--app-focus-ring);
+        outline-offset: 1px;
+    }
+
+    input {
+        flex-shrink: 0;
+        margin: 0;
+        accent-color: var(--app-selection-color);
+    }
+}
+
+.web-video-source--selected {
+    color: var(--app-list-selected-fg);
+    background: var(--app-list-selected-bg);
+    border-color: var(--app-selection-border, var(--app-separator));
+}
+
+.web-video-source--ad:not(.web-video-source--selected) {
+    color: var(--app-muted-color);
+}
+
+.web-video-source__icon {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    font-size: 20px;
+}
+
+.web-video-source__text {
+    display: grid;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.web-video-source__primary {
+    display: flex;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+
+    > span + span::before {
+        margin-right: 8px;
+        content: '·';
+        opacity: 0.6;
+    }
+}
+
+.web-video-source__secondary {
+    overflow: hidden;
+    color: var(--app-muted-color);
+    font-size: 12px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.web-video-source__badges {
+    display: flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: flex-end;
+    max-width: 45%;
+}
+
+.web-video-badge {
+    padding: 2px 8px;
+    color: var(--app-muted-color);
+    font-size: 11px;
+    line-height: 16px;
+    white-space: nowrap;
+    border: 1px solid var(--app-separator);
+    border-radius: 999px;
+}
+
+.web-video-badge--best {
+    color: var(--app-success-color);
+    border-color: currentColor;
+}
+
+.web-video-badge--warn {
+    color: var(--app-expiry-warn-text);
+    background: var(--app-expiry-warn-surface);
+    border-color: transparent;
+}
+
+.web-video-ads-toggle {
+    justify-self: start;
+    margin-top: 4px;
+}
+
+.web-video-device {
+    width: 100%;
+    margin-top: 16px;
+}
+
+// Product names, not translated: which kind of receiver this is.
+.web-video-device__kind {
+    margin-left: 8px;
+    color: var(--app-muted-color);
+    font-size: 12px;
+}
+
+.web-video-cast-status {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-top: 16px;
+    padding: 10px 12px;
+    color: var(--app-success-color);
+    font-size: 13px;
+    line-height: 1.4;
+    border: 1px solid var(--app-separator);
+    border-radius: 10px;
+
+    mat-icon {
+        flex-shrink: 0;
+        width: 18px;
+        height: 18px;
+        font-size: 18px;
+    }
+}
+
+.web-video-cast-status--failed {
+    color: var(--app-danger-text);
+}
+
+.web-video-cast-status__title {
+    font-weight: 500;
+}
+
+.web-video-cast-status__message {
+    margin-top: 2px;
+    color: var(--app-muted-color);
+    font-size: 12px;
+}

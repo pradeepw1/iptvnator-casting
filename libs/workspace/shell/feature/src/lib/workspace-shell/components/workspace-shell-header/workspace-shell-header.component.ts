@@ -18,6 +18,7 @@ import { MatIcon } from '@angular/material/icon';
 import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatTooltip } from '@angular/material/tooltip';
 import { TranslatePipe } from '@ngx-translate/core';
+import { WebVideoCastLauncher } from '@iptvnator/ui/playback/web-video-cast';
 import { PlaylistSwitcherComponent } from '@iptvnator/playlist/shared/ui';
 import {
     WorkspaceBackTarget,
@@ -63,6 +64,7 @@ export class WorkspaceShellHeaderComponent {
     private readonly overflowMenuTrigger = viewChild(MatMenuTrigger);
     private readonly hostElement = inject(ElementRef<HTMLElement>);
     private readonly injector = inject(Injector);
+    protected readonly webVideoCast = inject(WebVideoCastLauncher);
     private readonly searchInput =
         viewChild<ElementRef<HTMLInputElement>>('searchInput');
     // read: ElementRef because mat-icon-button is a component, so a bare

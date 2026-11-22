@@ -37,7 +37,6 @@ import { ControlsVolumeInteractions } from './controls-volume-interactions';
 import { ControlsSubtitleSettings } from './controls-subtitle-settings';
 import { formatRemainingTime } from './controls-format.utils';
 import type {
-    PlayerController,
     PlayerMediaTitle,
     PlayerTimelineSegment,
     PlayerUpNextItem,
@@ -46,6 +45,7 @@ import type { MultiviewLayout } from '../second-stream/second-stream-open-stream
 import { PlayerSettingsPanelComponent } from './player-settings-panel.component';
 import { PlayerTimelineComponent } from './player-timeline.component';
 import { PlayerUpNextCardComponent } from './player-up-next-card.component';
+import { PlayerCastMenuComponent, withCasting } from '../cast';
 
 @Component({
     selector: 'app-player-controls',
@@ -60,6 +60,7 @@ import { PlayerUpNextCardComponent } from './player-up-next-card.component';
         PlayerSettingsPanelComponent,
         PlayerTimelineComponent,
         PlayerUpNextCardComponent,
+        PlayerCastMenuComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     host: {
@@ -70,7 +71,8 @@ import { PlayerUpNextCardComponent } from './player-up-next-card.component';
 export class PlayerControlsComponent implements OnDestroy {
     private readonly host = inject(ElementRef<HTMLElement>).nativeElement;
     private readonly translate = inject(TranslateService);
-    readonly controller = input.required<PlayerController>();
+    /** The engine's controller; drives the TV instead while casting. */
+    readonly controller = input.required({ transform: withCasting() });
     readonly playerSurface = input<HTMLElement | null>(null);
     /**
      * Element put into DOM fullscreen; defaults to `playerSurface`. Hosts
@@ -87,7 +89,8 @@ export class PlayerControlsComponent implements OnDestroy {
     readonly canOpenMultiview = input(false);
     readonly multiviewAddRequested = output<void>();
     readonly multiviewLayoutRequested = output<MultiviewLayout>();
-    readonly multiviewMenuOpen = signal(false);
+    /** A Material overlay menu (multiview or cast) is open. */
+    readonly overlayMenuOpen = signal(false);
     readonly shortcutsEnabled = input(true);
     readonly mediaTitle = input<PlayerMediaTitle | null>(null);
     /** Chapters / programmes drawn as track segments; null draws one. */
@@ -101,7 +104,7 @@ export class PlayerControlsComponent implements OnDestroy {
     readonly menus = new ControlsMenuState();
     readonly feedback = new ControlsFeedback();
     readonly anyMenuOpen = computed(
-        () => this.menus.anyOpen() || this.multiviewMenuOpen()
+        () => this.menus.anyOpen() || this.overlayMenuOpen()
     );
     private readonly shortcuts = new ControlsShortcuts();
     readonly transport = new ControlsTransport({

@@ -311,6 +311,35 @@ playlist or EPG source host. The `IPTVNATOR_ALLOW_INSECURE_TLS=1` escape hatch
 is only for explicitly trusted providers with invalid or self-signed
 certificates when the host-scoped UI path is not available.
 
+## Web Video Scan View
+
+"Cast a web video" (see [casting](./casting.md#cast-a-web-video)) loads a
+user-pasted page in the main process to find its video streams. That page is
+untrusted and never shares anything with the app window:
+
+- It runs in an unattached, offscreen `WebContentsView`, not a
+  `BrowserWindow`, so it is absent from `BrowserWindow.getAllWindows()` and
+  never receives broadcasts or remote-control commands sent to "all windows".
+- Its session is a fresh in-memory partition per scan, without the app's
+  header shims, cache or cookies, and is cleared afterwards.
+- `sandbox`, `contextIsolation`, no preload, no `webviewTag`, dialogs
+  disabled, audio muted.
+- Popups are denied, downloads cancelled, and every permission request and
+  check refused.
+- The main frame may follow http(s) redirects until the page has loaded; after
+  that, and for any other scheme, navigation is blocked.
+- Requests to `localhost` and to loopback or private IP literals are cancelled,
+  so a page cannot reach the app's own local servers or the LAN (private IPs
+  are allowed only with `IPTVNATOR_ALLOW_PRIVATE_NETWORK_URLS`). Images, fonts
+  and stream segments are cancelled too.
+- The scan ends after at most 15 seconds, or on cancel, and closes the view.
+- Whatever the page script reports is validated field by field
+  (`web-video-dom-report.ts`); only http(s) URLs survive.
+
+The pasted URL is validated like other renderer-supplied remote URLs. The
+follow-up probes run in the main process with no cookies or Referer and
+validate every redirect hop.
+
 ## Sensitive Diagnostic Logging
 
 Settings, portal requests/responses, IPC trace payloads, and remote-request

@@ -1830,6 +1830,11 @@ The remaining design seams are:
    route-scoped views. The contract is lifecycle-agnostic; this integration
    does not add that host or change current teardown behavior.
 
+Casting does not extend `PlayerController`: under `WebPlayerViewComponent`, the
+`withCasting()` input transform wraps the engine controller so the shared
+controls drive a Chromecast while a session is active. See
+[casting](./casting.md).
+
 ## File map
 
 Landed in #1148:

@@ -26,6 +26,11 @@ import EmbeddedMpvEvents, {
 } from '../events/embedded-mpv.events';
 import EpgEvents from '../events/epg.events';
 import AppUpdateEvents from '../events/app-update.events';
+import { registerCastEvents, shutdownCasting } from '../events/cast.events';
+import {
+    registerWebVideoEvents,
+    shutdownWebVideoScans,
+} from '../events/web-video.events';
 import { disposePrivatePlayerIpcEndpoints } from '../events/mpv-ipc-endpoint';
 import { shutdownMpvSession } from '../events/mpv-session.service';
 import PlayerEvents from '../events/player.events';
@@ -101,6 +106,8 @@ export function bootstrapDeferredEvents(
     DatabaseEvents.bootstrapDatabaseEvents();
     EpgEvents.bootstrapEpgEvents();
     RemoteControlEvents.bootstrapRemoteControlEvents();
+    registerCastEvents();
+    registerWebVideoEvents();
 
     // Keep the downloads broadcaster bound to the live window. macOS can
     // rebuild the window while the process runs, and a stale reference
@@ -122,6 +129,8 @@ export function shutdownDeferredServices(): Promise<void> {
     shutdownEmbeddedMpv();
     shutdownMpvSession();
     shutdownVlcSession();
+    shutdownCasting();
+    shutdownWebVideoScans();
     disposePrivatePlayerIpcEndpoints();
     return databaseWorkerClient.drainAndShutdown();
 }

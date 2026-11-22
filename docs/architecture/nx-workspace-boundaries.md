@@ -425,7 +425,9 @@ project also loads dynamically.
 
 The lazy `/workspace` route is entered at every start, so the workspace shell
 follows the same rule: it imports `EmbeddedMpvOverlayVisibilityService` from
-`@iptvnator/ui/playback/embedded-mpv-player` and re-exports the global
+`@iptvnator/ui/playback/embedded-mpv-player`, the header's "Cast a web video"
+launcher from `@iptvnator/ui/playback/web-video-cast` (the dialog itself loads
+on first use), and re-exports the global
 favourites list from `@iptvnator/portal/shared/ui/global-favorites-list`.
 Either barrel puts the web players (video.js, hls.js, mpegts.js, ArtPlayer,
 about 2.7 MB) on the first route; a `no-restricted-imports` block in

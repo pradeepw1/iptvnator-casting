@@ -1,0 +1,256 @@
+<app-dialog-shell
+    icon="cast"
+    [heading]="'CAST.WEB.TITLE' | translate"
+    [subtitle]="result()?.title ?? ('CAST.WEB.SUBTITLE' | translate)"
+>
+    <!-- A text field: links without a scheme ("example.com/watch") are
+         valid here, but a url-typed field would block the submit. -->
+    <form
+        class="web-video-link"
+        novalidate
+        (submit)="$event.preventDefault(); find()"
+    >
+        <mat-form-field
+            appearance="outline"
+            subscriptSizing="dynamic"
+            class="web-video-link__field"
+        >
+            <mat-label>{{ 'CAST.WEB.LINK_LABEL' | translate }}</mat-label>
+            <input
+                matInput
+                type="text"
+                inputmode="url"
+                autocomplete="off"
+                spellcheck="false"
+                data-test-id="web-video-link"
+                cdkFocusInitial
+                [value]="link()"
+                (input)="link.set($any($event.target).value)"
+                [disabled]="state() === 'scanning'"
+                placeholder="https://"
+            />
+        </mat-form-field>
+        @if (state() === 'scanning') {
+            <button
+                mat-flat-button
+                type="button"
+                class="app-dialog__secondary"
+                (click)="cancel()"
+            >
+                {{ 'CANCEL' | translate }}
+            </button>
+        } @else {
+            <button
+                mat-flat-button
+                type="submit"
+                class="app-dialog__secondary"
+                data-test-id="web-video-find"
+                [disabled]="!link().trim()"
+            >
+                {{ 'CAST.WEB.FIND' | translate }}
+            </button>
+        }
+    </form>
+
+    @if (state() === 'scanning') {
+        <div class="web-video-status" role="status">
+            <mat-progress-bar mode="indeterminate" />
+            <span>{{ 'CAST.WEB.SCANNING' | translate }}</span>
+        </div>
+    }
+
+    @if (errorKey(); as key) {
+        <p class="web-video-error" role="alert" data-test-id="web-video-error">
+            <mat-icon>error_outline</mat-icon>
+            <span>{{ key | translate }}</span>
+        </p>
+    }
+
+    @if (videos().length > 0 || ads().length > 0) {
+        <div class="web-video-sources" data-test-id="web-video-sources">
+            @for (view of videos(); track view.id) {
+                <ng-container
+                    *ngTemplateOutlet="row; context: { $implicit: view }"
+                />
+            }
+            @if (ads().length > 0) {
+                <button
+                    mat-button
+                    type="button"
+                    class="app-dialog__ghost web-video-ads-toggle"
+                    data-test-id="web-video-ads-toggle"
+                    [attr.aria-expanded]="showAds()"
+                    (click)="showAds.set(!showAds())"
+                >
+                    <mat-icon>{{
+                        showAds() ? 'expand_less' : 'expand_more'
+                    }}</mat-icon>
+                    {{ 'CAST.WEB.ADS' | translate: { count: ads().length } }}
+                </button>
+                @if (showAds()) {
+                    @for (view of ads(); track view.id) {
+                        <ng-container
+                            *ngTemplateOutlet="
+                                row;
+                                context: { $implicit: view }
+                            "
+                        />
+                    }
+                }
+            }
+        </div>
+    }
+
+    <ng-template #row let-view>
+        <label
+            class="web-video-source"
+            [class.web-video-source--ad]="view.ad"
+            [class.web-video-source--selected]="selectedId() === view.id"
+            data-test-id="web-video-source"
+        >
+            <input
+                type="radio"
+                name="web-video-source"
+                [value]="view.id"
+                [checked]="selectedId() === view.id"
+                (change)="selectedId.set(view.id)"
+            />
+            <mat-icon class="web-video-source__icon">{{ view.icon }}</mat-icon>
+            <span class="web-video-source__text">
+                <span class="web-video-source__primary">
+                    @if (view.quality) {
+                        <span>{{ view.quality }}</span>
+                    }
+                    <span>{{
+                        view.format ?? ('CAST.WEB.FORMAT_OTHER' | translate)
+                    }}</span>
+                    @if (view.live) {
+                        <span>{{ 'CAST.WEB.LIVE' | translate }}</span>
+                    } @else if (view.duration) {
+                        <span>{{ view.duration }}</span>
+                    }
+                </span>
+                <span class="web-video-source__secondary">
+                    {{ view.host }}
+                    @if (view.size) {
+                        · {{ view.size }}
+                    }
+                </span>
+            </span>
+            <span class="web-video-source__badges">
+                @if (view.best) {
+                    <span class="web-video-badge web-video-badge--best">{{
+                        'CAST.WEB.BEST_MATCH' | translate
+                    }}</span>
+                }
+                @if (view.reasonKey) {
+                    <span class="web-video-badge">{{
+                        view.reasonKey | translate
+                    }}</span>
+                }
+                @if (view.embeddedAds) {
+                    <span class="web-video-badge">{{
+                        'CAST.WEB.ADS_BUILT_IN' | translate
+                    }}</span>
+                }
+                @if (view.warningKey) {
+                    <span class="web-video-badge web-video-badge--warn">{{
+                        view.warningKey | translate
+                    }}</span>
+                }
+            </span>
+        </label>
+    </ng-template>
+
+    @if (cast.devices().length > 0) {
+        <mat-form-field
+            appearance="outline"
+            subscriptSizing="dynamic"
+            class="web-video-device"
+        >
+            <mat-label>{{ 'CAST.WEB.DEVICE' | translate }}</mat-label>
+            <mat-select
+                data-test-id="web-video-device"
+                [value]="deviceId()"
+                (valueChange)="chosenDeviceId.set($event)"
+            >
+                <!-- The closed field shows the name alone; the open list
+                     adds the receiver kind. -->
+                <mat-select-trigger>{{
+                    selectedDeviceName()
+                }}</mat-select-trigger>
+                @for (device of cast.devices(); track device.id) {
+                    <mat-option [value]="device.id">
+                        {{ device.name }}
+                        <span class="web-video-device__kind">{{
+                            device.kind === 'roku' ? 'Roku' : 'Chromecast'
+                        }}</span>
+                    </mat-option>
+                }
+            </mat-select>
+        </mat-form-field>
+    } @else {
+        <p class="web-video-devices-empty">
+            <mat-icon>{{ cast.discovering() ? 'sync' : 'tv_off' }}</mat-icon>
+            <span>{{
+                (cast.discovering() ? 'CAST.SEARCHING' : 'CAST.NO_DEVICES')
+                    | translate
+            }}</span>
+            @if (!cast.discovering()) {
+                <button
+                    mat-button
+                    type="button"
+                    class="app-dialog__ghost"
+                    (click)="cast.discover()"
+                >
+                    {{ 'CAST.SEARCH_AGAIN' | translate }}
+                </button>
+            }
+        </p>
+    }
+
+    @if (cast.statusCard(); as card) {
+        <div
+            class="web-video-cast-status"
+            [class.web-video-cast-status--failed]="card.failed"
+            role="status"
+            data-test-id="web-video-cast-status"
+        >
+            <mat-icon>{{
+                card.failed ? 'error_outline' : 'cast_connected'
+            }}</mat-icon>
+            <div>
+                <div class="web-video-cast-status__title">
+                    {{ card.titleKey | translate: { device: card.device } }}
+                </div>
+                @if (card.messageKey) {
+                    <div class="web-video-cast-status__message">
+                        {{ card.messageKey | translate }}
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <div appDialogFooter>
+        @if (cast.active()) {
+            <button mat-button type="button" (click)="cast.stop()">
+                {{ 'CAST.STOP' | translate }}
+            </button>
+        } @else {
+            <button mat-button type="button" mat-dialog-close>
+                {{ 'CLOSE' | translate }}
+            </button>
+        }
+        <button
+            mat-flat-button
+            type="button"
+            data-test-id="web-video-cast"
+            [disabled]="!canCast()"
+            (click)="castSelected()"
+        >
+            <mat-icon>cast</mat-icon>
+            {{ 'CAST.CAST' | translate }}
+        </button>
+    </div>
+</app-dialog-shell>

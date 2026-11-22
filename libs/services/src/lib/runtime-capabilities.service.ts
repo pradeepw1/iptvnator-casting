@@ -321,6 +321,27 @@ export class RuntimeCapabilitiesService {
         ].every((methodName) => this.hasElectronMethod(methodName));
     }
 
+    /** Google Cast to receivers on the local network (desktop only). */
+    get supportsCasting(): boolean {
+        return [
+            'castDiscoverDevices',
+            'castGetSession',
+            'castStart',
+            'castControl',
+            'castStop',
+            'onCastSessionUpdate',
+        ].every((methodName) => this.hasElectronMethod(methodName));
+    }
+
+    /** Finding and casting the videos of a pasted web page. */
+    get supportsWebVideoCasting(): boolean {
+        return (
+            this.supportsCasting &&
+            this.hasElectronMethod('castFindWebVideos') &&
+            this.hasElectronMethod('castCancelWebVideoScan')
+        );
+    }
+
     get supportsPortalActivityStorage(): boolean {
         return [
             'dbGetPlaylist',

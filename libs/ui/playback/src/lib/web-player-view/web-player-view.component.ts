@@ -76,6 +76,7 @@ import {
     toVideoPlayer,
 } from './web-player-recovery-policy';
 import { resolveWebPlayerSharedControls } from './web-player-shared-controls';
+import { providePlayerCast } from '../cast';
 
 @Component({
     selector: 'app-web-player-view',
@@ -102,6 +103,7 @@ import { resolveWebPlayerSharedControls } from './web-player-shared-controls';
             provide: WEB_PLAYER_SHARED_CONTROLS,
             useFactory: resolveWebPlayerSharedControls,
         },
+        providePlayerCast(() => WebPlayerViewComponent),
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     encapsulation: ViewEncapsulation.None,

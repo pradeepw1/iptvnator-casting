@@ -1,0 +1,54 @@
+<mat-menu yPosition="above">
+    @for (device of cast().devices(); track device.id) {
+        <button
+            mat-menu-item
+            type="button"
+            data-test-id="player-cast-device"
+            [appMenuItemRadio]="activeDeviceId() === device.id"
+            (click)="castTo(device)"
+        >
+            <mat-icon appMenuItemRadioCheck>check</mat-icon>
+            <mat-icon>{{ device.kind === 'roku' ? 'tv' : 'cast' }}</mat-icon>
+            <span>{{ device.name }}</span>
+        </button>
+    } @empty {
+        <button mat-menu-item type="button" disabled>
+            <mat-icon>{{ cast().discovering() ? 'sync' : 'tv_off' }}</mat-icon>
+            <span>{{
+                (cast().discovering() ? 'CAST.SEARCHING' : 'CAST.NO_DEVICES')
+                    | translate
+            }}</span>
+        </button>
+    }
+
+    <button
+        mat-menu-item
+        type="button"
+        [disabled]="cast().discovering()"
+        (click)="search($event)"
+    >
+        <mat-icon>refresh</mat-icon>
+        <span>{{ 'CAST.SEARCH_AGAIN' | translate }}</span>
+    </button>
+
+    @if (needsCustomHeaders()) {
+        <button mat-menu-item type="button" disabled>
+            <mat-icon>info</mat-icon>
+            <span>{{ 'CAST.HEADERS_WARNING' | translate }}</span>
+        </button>
+    }
+
+    @if (cast().active()) {
+        <mat-divider />
+        <button
+            mat-menu-item
+            type="button"
+            class="app-menu-item--danger"
+            data-test-id="player-cast-stop"
+            (click)="cast().stop()"
+        >
+            <mat-icon>cancel_presentation</mat-icon>
+            <span>{{ 'CAST.STOP' | translate }}</span>
+        </button>
+    }
+</mat-menu>
